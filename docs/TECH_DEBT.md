@@ -98,49 +98,38 @@ All three new backend endpoints (`/recommendations/v2`, `/slots`, `/degradation/
 
 ## 3. What Is Remaining (Prioritized)
 
-### 3.1 HIGH — Phase 1 Completion: 3D Physics Simulation
+> **Status note (final stretch):** Phase 1 (3D physics) and Phase 2 (vision) are now both implemented. The original "remaining" items in this section were resolved during the late-March integration work. The list below is the residual debt going into final submission.
 
-This is the critical gap between proposal and implementation. The proposal's Phase 1 deliverable is:
-
-> "Rapier3D rigid-body simulation with a dual-friction model, Three.js rendering pipeline, and a manual parameter input interface."
-
-**What must be built:**
-
-| Task | Complexity | Dependencies | Files to Create/Modify |
-|---|---|---|---|
-| **Rapier3D WASM integration** — Load rapier3d-compat in a Web Worker, create world with gravity, lane collider, ball rigid body | High | `@dimforge/rapier3d-compat` npm package | `src/workers/physics-worker.ts` (new) |
-| **Dual-state friction model** — Implement kinetic friction F_k = -μ_k·N·(v_p/\|v_p\|) with zone-dependent μ_k (0.04 oil, 0.18–0.22 dry) and rolling resistance (μ_r ≈ 0.01) | High | Rapier3D worker | Inside physics worker |
-| **Three.js 3D scene** — Lane geometry (60ft × 42in), pin deck, ball mesh with texture, camera (overhead + chase), lighting | High | `three` npm package | `src/components/SimulationView3D.tsx` (new) |
-| **Trajectory rendering** — Read position time-series from physics worker, render as trail/line in Three.js scene | Medium | Three.js scene + physics worker | Inside SimulationView3D |
-| **Phase detection** — Classify skid→hook→roll transitions from velocity/angular-velocity data returned by physics worker | Medium | Physics worker output | `src/utils/phase-detector.ts` (new) |
-| **`oil_patterns` DB table** — Schema: id, name, length_ft, board_data (JSON array of per-board oil units) | Low | Backend migration script | `scripts/migrate_oil_patterns.py` (new), `services.py` edit |
-| **Oil pattern API endpoint** — `GET /oil-patterns` returning available patterns | Low | DB table | `main.py`, `api_models.py` edits |
-| **Replace or supplement SimulationView** — Wire new 3D view into Layout tab, keep 2D as fallback | Medium | Three.js component ready | `Layout.tsx` edit |
-
-**Success criterion (from proposal):** Trajectory exhibits three distinct phases (skid, hook, and roll) consistent with USBC qualitative descriptions.
-
-**Risk mitigation (from proposal):** If rigid-body solver coupling proves unstable, fall back to simplified kinematic model with parabolic trajectory approximation — which is essentially what the current 2D parametric model already provides.
-
-### 3.2 MEDIUM — Phase 2: Vision Integration
-
-| Task | Complexity | Dependencies |
-|---|---|---|
-| MediaPipe JS SDK in Web Worker | Medium | `@mediapipe/tasks-vision` npm package |
-| Ball speed extraction (wrist displacement over 100 ms) | Medium | Pose landmarks |
-| Launch angle extraction (wrist-elbow vector vs lane axis) | Medium | Pose landmarks |
-| Rev-rate proxy (forearm angular velocity regression) | High | Pose landmarks + calibration |
-| Manual foul-line calibration UI | Medium | Canvas overlay |
-| Release detection (slide-foot deceleration) | Medium | Hip/knee/ankle landmarks |
-
-### 3.3 LOW — Polish and Proposal Gaps
+### 3.1 LOW — Validation Gaps
 
 | Task | Status | Notes |
 |---|---|---|
-| 4D feature space for KNN (RG, diff, mass bias, coverstock encoding) | **Partially done** — current uses 3D (rg, diff, int_diff) + L2 + normalization; coverstock encoding exists in `synthetic_data.py` but not wired to KNN | Wire coverstock ordinal encoding into KNN distance function |
-| Decision Framework (simulation → recommendation feedback loop) | Not built | Requires physics engine; post-simulation triggers recommendation with "why" explanation |
-| Database enrichment (hook_potential, length_rating, backend_reaction, core_name) | Not done | Would require scraping BTM reviews or manufacturer pages |
-| `oil_patterns` table | Not done | Blocked by Phase 1 work |
-| Feature normalization in v1 KNN | **Done in v2** | V2 endpoint supports `normalize: true` |
+| Rev-rate proxy validation against ground truth | **Documented as limitation** | No ground-truth bowling video with known RPM available. Manual input is the primary path. Proposal identified this as the highest-risk component; that prediction held. |
+| Camera calibration accuracy across angles | **Documented in Section VI-F of report** | Side-angle vs behind-bowler tradeoff. Hybrid suggestion interface used as practical resolution. |
+| Board position auto-detection from video | **Deferred** | Requires overhead camera or lane marking recognition. Manual selection retained. |
+| ArUco marker-based foul-line calibration | **Deferred to future work** | Cited in proposal as future iteration. Manual calibration kept. |
+
+### 3.2 LOW — Polish and Proposal Alignment
+
+| Task | Status | Notes |
+|---|---|---|
+| 4D feature space for KNN (RG, diff, mass bias, coverstock encoding) | **Partial** — 3D baseline + normalization in place; ordinal coverstock encoding exists in `synthetic_data.py` but not wired into KNN distance | Optional refinement; v2 two-tower model already uses full feature set |
+| Database enrichment (hook_potential, length_rating, backend_reaction, core_name) | **Not done** | Would require scraping BTM reviews or manufacturer pages. Out of scope for final submission. |
+| Two-tower model pre-training in setup pipeline | **Done** | Training step added to `setup_db.py` |
+| Oil patterns DB table | **Done** | `oil_patterns` table seeded with 6 patterns, exposed via `GET /oil-patterns` |
+| Decision Framework (sim → rec feedback loop) | **Done** | `analyzeSimulation()` produces actionable advice; integrated in 2D and 3D simulation views |
+
+### 3.3 LOW — Test Coverage Gaps
+
+| Task | Status | Notes |
+|---|---|---|
+| Integration tests for `/recommendations/v2` | **Done** | Added in final stretch |
+| Integration tests for `/slots` | **Done** | Added in final stretch |
+| Integration tests for `/degradation/compare` | **Done** | Added in final stretch |
+| Unit tests for `parametric-physics.ts` and `phase-detector.ts` | **Done** | Added in final stretch |
+| Unit tests for v2 / slots / degradation API clients | **Done** | Added in final stretch |
+| Visual regression tests | **Not done** | Would require screenshot baseline. Not critical for final submission. |
+| Performance benchmarks (KNN at 1,360 scale, Voronoi latency) | **Not done** | Manual timing in development showed sub-second response. No automated benchmarks. |
 
 ---
 
